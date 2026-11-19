@@ -56,7 +56,7 @@ void openMap(BuildContext context) {
             ),
           ),
           body: const SafeArea(
-            child: MapTab(),
+            child: MapTab(showTitle: false),
           ),
         );
       },

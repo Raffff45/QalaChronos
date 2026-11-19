@@ -7,8 +7,8 @@ class Landmark {
     required this.year,
     required this.photo,
     required this.modelPhoto,
-    required this.mapX,
-    required this.mapY,
+    required this.lat,
+    required this.lng,
     this.hasThenNow = false,
   });
 
@@ -21,9 +21,9 @@ class Landmark {
   final String photo;
   final String modelPhoto;
 
-  /// Положение метки на схематичной карте (доля ширины / высоты).
-  final double mapX;
-  final double mapY;
+  /// Координаты объекта на карте (широта и долгота).
+  final double lat;
+  final double lng;
 
   /// Есть ли для объекта сравнение «раньше и сейчас».
   final bool hasThenNow;

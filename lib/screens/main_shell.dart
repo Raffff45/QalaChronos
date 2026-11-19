@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../state/app_scope.dart';
 import 'tabs/favorites_tab.dart';
 import 'tabs/home_tab.dart';
+import 'tabs/map_tab.dart';
 import 'tabs/profile_tab.dart';
 
 class MainShell extends StatefulWidget {
@@ -32,6 +33,7 @@ class _MainShellState extends State<MainShell> {
           index: _tab,
           children: const [
             HomeTab(),
+            MapTab(),
             FavoritesTab(),
             ProfileTab(),
           ],
@@ -46,6 +48,12 @@ class _MainShellState extends State<MainShell> {
             icon: const Icon(Icons.home_outlined),
             selectedIcon: const Icon(Icons.home),
             label: t('Главная', 'Басты', 'Home'),
+          ),
+
+          NavigationDestination(
+            icon: const Icon(Icons.map_outlined),
+            selectedIcon: const Icon(Icons.map),
+            label: t('Карта', 'Карта', 'Map'),
           ),
 
           NavigationDestination(

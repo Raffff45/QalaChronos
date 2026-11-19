@@ -12,8 +12,8 @@ const landmarks = <Landmark>[
     year: '1907',
     photo: 'cathedral',
     modelPhoto: 'model',
-    mapX: 0.54,
-    mapY: 0.21,
+    lat: 43.2588,
+    lng: 76.9567,
     hasThenNow: true,
   ),
   Landmark(
@@ -27,7 +27,7 @@ const landmarks = <Landmark>[
     year: '1941',
     photo: 'theatre',
     modelPhoto: 'theatre',
-    mapX: 0.26,
-    mapY: 0.54,
+    lat: 43.2494,
+    lng: 76.9458,
   ),
 ];
