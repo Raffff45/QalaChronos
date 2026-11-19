@@ -5,93 +5,94 @@ import '../../core/app_theme.dart';
 import '../../core/routes.dart';
 import '../../data/landmarks.dart';
 import '../../state/app_scope.dart';
-import '../../widgets/landmark_card.dart';
 import '../../widgets/menu_tile.dart';
 
-/// Главная: шапка с горами Алматы, под ней плитки разделов и список объектов.
 class HomeTab extends StatelessWidget {
-  const HomeTab({super.key, required this.onSelectTab});
+  const HomeTab({super.key});
 
-  /// Переключает вкладку нижней навигации (1 = карта, 2 = каталог).
-  final ValueChanged<int> onSelectTab;
-
-  // Шапку берём из верхней части menu.png (там логотип, горы, город).
-  // Картинка 941x1672, а город с логотипом заканчиваются примерно на 40% высоты.
   static const _headerImage = AssetImage('assets/menu.png');
   static const _imageRatio = 1672 / 941;
   static const _headerShare = 0.42;
   static const _maxContentWidth = 480.0;
-  static const _cream = Color(0xFFF2E3BD);
 
   @override
   Widget build(BuildContext context) {
     final t = AppScope.of(context).t;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      // шапка идёт под статус-баром: значки там светлые
       value: SystemUiOverlayStyle.light.copyWith(
         statusBarColor: Colors.transparent,
       ),
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: _maxContentWidth),
+          constraints: const BoxConstraints(
+            maxWidth: _maxContentWidth,
+          ),
           child: LayoutBuilder(
             builder: (context, box) {
-              final headerHeight = box.maxWidth * _imageRatio * _headerShare;
+              final headerHeight =
+                  box.maxWidth * _imageRatio * _headerShare;
 
               return ListView(
                 padding: EdgeInsets.zero,
                 children: [
                   _Header(height: headerHeight),
+
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    child: GridView.count(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      padding: EdgeInsets.zero,
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 14,
+                      mainAxisSpacing: 14,
+                      childAspectRatio: 1.3,
                       children: [
-                        GridView.count(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          padding: EdgeInsets.zero,
-                          crossAxisCount: 2,
-                          crossAxisSpacing: 14,
-                          mainAxisSpacing: 14,
-                          childAspectRatio: 1.3,
-                          children: [
-                            MenuTile(
-                              icon: Icons.location_on_outlined,
-                              label: t('Карта\nобъектов', 'Нысандар\nкартасы',
-                                  'Landmark\nmap'),
-                              onTap: () => onSelectTab(1),
-                            ),
-                            MenuTile(
-                              icon: Icons.view_in_ar_outlined,
-                              label: t('3D-модели', '3D-модельдер', '3D models'),
-                              onTap: () => openLandmark(context, landmarks.first),
-                            ),
-                            MenuTile(
-                              icon: Icons.history,
-                              label: t('Машина\nвремени', 'Уақыт\nмашинасы',
-                                  'Time\nmachine'),
-                              onTap: () => openTimeMachine(context),
-                            ),
-                            MenuTile(
-                              icon: Icons.explore_outlined,
-                              label: t('Каталог', 'Тізім', 'Explore'),
-                              onTap: () => onSelectTab(2),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 28),
-                        Text(
-                          t('Объекты', 'Нысандар', 'Landmarks'),
-                          style: const TextStyle(
-                            color: _cream,
-                            fontSize: 20,
-                            fontWeight: FontWeight.w700,
+                        // Карта объектов
+                        MenuTile(
+                          icon: Icons.location_on_outlined,
+                          label: t(
+                            'Карта\nобъектов',
+                            'Нысандар\nкартасы',
+                            'Landmark\nmap',
                           ),
+                          onTap: () => openMap(context),
                         ),
-                        const SizedBox(height: 12),
-                        for (final l in landmarks) LandmarkCard(l),
+
+                        // 3D-модели
+                        MenuTile(
+                          icon: Icons.view_in_ar_outlined,
+                          label: t(
+                            '3D-модели',
+                            '3D-модельдер',
+                            '3D models',
+                          ),
+                          onTap: () =>
+                              openLandmark(context, landmarks.first),
+                        ),
+
+                        // Машина времени
+                        MenuTile(
+                          icon: Icons.history,
+                          label: t(
+                            'Машина\nвремени',
+                            'Уақыт\nмашинасы',
+                            'Time\nmachine',
+                          ),
+                          onTap: () => openTimeMachine(context),
+                        ),
+
+                        // Маршруты
+                        MenuTile(
+                          icon: Icons.route_outlined,
+                          label: t(
+                            'Маршруты',
+                            'Маршруттар',
+                            'Routes',
+                          ),
+                          onTap: () => openRoutes(context),
+                        ),
                       ],
                     ),
                   ),
@@ -117,7 +118,6 @@ class _Header extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // fitWidth + topCenter: показываем верх картинки, нижнюю пустоту обрезаем
           const ClipRect(
             child: Image(
               image: HomeTab._headerImage,
@@ -125,7 +125,8 @@ class _Header extends StatelessWidget {
               alignment: Alignment.topCenter,
             ),
           ),
-          // плавный переход шапки в фон экрана
+
+          // Плавный переход изображения в фон
           Positioned(
             left: 0,
             right: 0,
@@ -136,7 +137,10 @@ class _Header extends StatelessWidget {
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [Color(0x00101C19), darkBg],
+                  colors: [
+                    Color(0x00101C19),
+                    darkBg,
+                  ],
                 ),
               ),
             ),

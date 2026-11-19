@@ -17,7 +17,8 @@ ThemeData buildAppTheme() {
     appBarTheme: const AppBarTheme(backgroundColor: darkBg),
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: const Color(0xFF0C1714),
-      indicatorColor: gold.withValues(alpha: 0.16),
+      // На макете у активной вкладки нет «таблетки» под иконкой
+      indicatorColor: Colors.transparent,
       iconTheme: WidgetStateProperty.resolveWith(
         (states) => IconThemeData(
           color: states.contains(WidgetState.selected)

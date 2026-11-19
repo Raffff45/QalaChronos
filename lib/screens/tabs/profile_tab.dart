@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../data/landmarks.dart';
 import '../../state/app_scope.dart';
-import '../../widgets/landmark_card.dart';
 import '../../widgets/page_list.dart';
 import '../../widgets/section_title.dart';
 import '../../widgets/wide_button.dart';
@@ -37,9 +36,6 @@ class ProfileTab extends StatelessWidget {
             MaterialPageRoute(builder: (_) => const OnboardingScreen(replay: true)),
           ),
         ),
-        SectionTitle(t('Избранное', 'Таңдаулы', 'Favorites')),
-        for (final l in landmarks)
-          if (state.isFav(l.id)) LandmarkCard(l),
       ],
     );
   }

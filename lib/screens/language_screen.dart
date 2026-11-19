@@ -1,10 +1,9 @@
-// ignore: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:qalachronos/widgets/Gold%20button.dart';
 
 import '../core/app_theme.dart';
 import '../state/app_scope.dart';
+import '../widgets/gold_button.dart';
 import 'splash_screen.dart';
 
 /// Первый экран приложения: выбор языка поверх картинки menu.png.
