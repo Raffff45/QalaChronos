@@ -5,7 +5,7 @@ import '../core/app_theme.dart';
 import '../core/routes.dart';
 import '../data/landmark.dart';
 import '../state/app_scope.dart';
-import '../widgets/app_photo.dart';
+import '../widgets/landmark_avatar.dart';
 import '../widgets/page_list.dart';
 import '../widgets/section_title.dart';
 import '../widgets/wide_button.dart';
@@ -35,7 +35,7 @@ class LandmarkScreen extends StatelessWidget {
       body: SafeArea(
         child: PageList(
           children: [
-            AppPhoto(landmark.photo, height: 280),
+            LandmarkHero(landmark),
             SectionTitle(landmark.name(state.lang)),
             Text(
               landmark.year,
@@ -43,7 +43,7 @@ class LandmarkScreen extends StatelessWidget {
             ),
             Text(landmark.description(state.lang)),
             WideButton(
-              t('Архитектурный просмотр', 'Сәулетті қарау', 'Architecture view'),
+              t('Смотреть 3D-модель', '3D-модельді көру', 'View 3D model'),
               () => openArchitecture(context, landmark),
             ),
             if (landmark.hasThenNow)

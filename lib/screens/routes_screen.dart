@@ -1,19 +1,23 @@
 import 'package:flutter/material.dart';
 
 import '../core/app_theme.dart';
-import '../core/routes.dart';
+import '../data/landmark.dart';
 import '../data/landmarks.dart';
 import '../state/app_scope.dart';
+import '../widgets/landmark_avatar.dart';
+import '../widgets/landmark_card.dart';
 import '../widgets/page_list.dart';
+import '../widgets/section_title.dart';
 
-/// Исторический маршрут. Расстояние и время пока ориентировочные (из макета).
+/// Исторический маршрут.
+/// Длина и время ориентировочные: считаются по прямым между объектами
+/// с запасом на изгибы улиц (пешком ~4,5 км/ч).
 class _Walk {
   const _Walk({
     required this.names,
     required this.landmarkIds,
     required this.km,
     required this.minutes,
-    required this.photo,
   });
 
   /// ru, kk, en
@@ -22,17 +26,17 @@ class _Walk {
   final double km;
   final int minutes;
 
-  /// Имя файла в assets/ без расширения.
-  final String photo;
+  List<Landmark> get stops => [
+        for (final id in landmarkIds) landmarks.firstWhere((l) => l.id == id),
+      ];
 }
 
 const _walks = <_Walk>[
   _Walk(
     names: ['Исторический центр', 'Тарихи орталық', 'Historic centre'],
     landmarkIds: ['cathedral', 'theatre'],
-    km: 1.8,
-    minutes: 40,
-    photo: 'cathedral',
+    km: 1.7,
+    minutes: 25,
   ),
   _Walk(
     names: [
@@ -40,12 +44,36 @@ const _walks = <_Walk>[
       'Кеңестік дәуір сәулеті',
       'Soviet-era architecture',
     ],
-    landmarkIds: ['theatre'],
-    km: 2.4,
+    landmarkIds: [
+      'hotel_kazakhstan',
+      'republic_palace',
+      'schoolchildren_palace',
+      'central_museum',
+    ],
+    km: 1.9,
+    minutes: 25,
+  ),
+  _Walk(
+    names: [
+      'Театры и цирк на проспекте Абая',
+      'Абай даңғылындағы театрлар мен цирк',
+      'Theatres and circus on Abay Avenue',
+    ],
+    landmarkIds: ['auezov_theatre', 'circus', 'theatre'],
+    km: 3.6,
     minutes: 50,
-    photo: 'theatre',
   ),
 ];
+
+String _countText(int n, int lang) {
+  if (lang == 1) return '$n нысан';
+  if (lang == 2) return n == 1 ? '1 landmark' : '$n landmarks';
+  final m10 = n % 10;
+  final m100 = n % 100;
+  if (m10 == 1 && m100 != 11) return '$n объект';
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return '$n объекта';
+  return '$n объектов';
+}
 
 class RoutesScreen extends StatelessWidget {
   const RoutesScreen({super.key});
@@ -71,26 +99,10 @@ class _WalkCard extends StatelessWidget {
 
   static const _radius = 22.0;
 
-  static String _count(int n, int lang) {
-    if (lang == 1) return '$n нысан';
-    if (lang == 2) return n == 1 ? '1 landmark' : '$n landmarks';
-    final m10 = n % 10;
-    final m100 = n % 100;
-    if (m10 == 1 && m100 != 11) return '$n объект';
-    if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return '$n объекта';
-    return '$n объектов';
-  }
-
   @override
   Widget build(BuildContext context) {
     final state = AppScope.of(context);
-    final t = state.t;
     final lang = state.lang;
-
-    final km = walk.km.toStringAsFixed(1);
-    final kmText = lang == 2 ? '$km km' : '${km.replaceAll('.', ',')} км';
-    final minText = t('~${walk.minutes} мин', '~${walk.minutes} мин',
-        '~${walk.minutes} min');
 
     return Material(
       color: Colors.transparent,
@@ -106,26 +118,16 @@ class _WalkCard extends StatelessWidget {
         ),
         child: InkWell(
           borderRadius: BorderRadius.circular(_radius),
-          // Экрана самого маршрута пока нет: открываем первый объект
-          onTap: () => openLandmark(
+          onTap: () => Navigator.push(
             context,
-            landmarks.firstWhere((l) => l.id == walk.landmarkIds.first),
+            MaterialPageRoute(builder: (_) => _WalkScreen(walk)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ClipRRect(
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(_radius)),
-                child: Image.asset(
-                  'assets/${walk.photo}.jpg',
-                  height: 120,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                ),
-              ),
+              _AvatarStrip(walk.stops),
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 12, 14),
+                padding: const EdgeInsets.fromLTRB(16, 4, 12, 14),
                 child: Row(
                   children: [
                     Expanded(
@@ -141,16 +143,7 @@ class _WalkCard extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 8),
-                          Wrap(
-                            spacing: 14,
-                            runSpacing: 4,
-                            children: [
-                              _Meta(Icons.place_outlined,
-                                  _count(walk.landmarkIds.length, lang)),
-                              _Meta(Icons.route_outlined, kmText),
-                              _Meta(Icons.schedule, minText),
-                            ],
-                          ),
+                          _MetaRow(walk),
                         ],
                       ),
                     ),
@@ -166,14 +159,122 @@ class _WalkCard extends StatelessWidget {
                         ),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child:
-                          const Icon(Icons.arrow_forward, size: 20, color: darkBg),
+                      child: const Icon(Icons.arrow_forward, size: 20, color: darkBg),
                     ),
                   ],
                 ),
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Обложка маршрута: аватарки остановок, наложенные друг на друга.
+class _AvatarStrip extends StatelessWidget {
+  const _AvatarStrip(this.stops);
+
+  final List<Landmark> stops;
+
+  static const _size = 76.0;
+  static const _step = 54.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final shown = stops.take(4).toList();
+    final width = _size + _step * (shown.length - 1);
+    return SizedBox(
+      height: 116,
+      child: Center(
+        child: SizedBox(
+          width: width,
+          height: _size,
+          child: Stack(
+            children: [
+              for (int i = 0; i < shown.length; i++)
+                Positioned(
+                  left: i * _step,
+                  child: LandmarkAvatar(shown[i], size: _size),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MetaRow extends StatelessWidget {
+  const _MetaRow(this.walk);
+
+  final _Walk walk;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = AppScope.of(context);
+    final lang = state.lang;
+    final km = walk.km.toStringAsFixed(1);
+    final kmText = lang == 2 ? '$km km' : '${km.replaceAll('.', ',')} км';
+    final minText = state.t('~${walk.minutes} мин', '~${walk.minutes} мин', '~${walk.minutes} min');
+    return Wrap(
+      spacing: 14,
+      runSpacing: 4,
+      children: [
+        _Meta(Icons.place_outlined, _countText(walk.landmarkIds.length, lang)),
+        _Meta(Icons.route_outlined, kmText),
+        _Meta(Icons.schedule, minText),
+      ],
+    );
+  }
+}
+
+/// Экран маршрута: остановки по порядку.
+class _WalkScreen extends StatelessWidget {
+  const _WalkScreen(this.walk);
+
+  final _Walk walk;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = AppScope.of(context);
+    final t = state.t;
+    final stops = walk.stops;
+    return Scaffold(
+      appBar: AppBar(title: Text(walk.names[state.lang])),
+      body: SafeArea(
+        child: PageList(
+          children: [
+            SectionTitle(walk.names[state.lang]),
+            _MetaRow(walk),
+            Text(
+              t(
+                'Длина и время ориентировочные.',
+                'Ұзындығы мен уақыты шамамен алынған.',
+                'Distance and time are approximate.',
+              ),
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 12),
+            ),
+            for (int i = 0; i < stops.length; i++)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 28,
+                    height: 28,
+                    alignment: Alignment.center,
+                    decoration: const BoxDecoration(shape: BoxShape.circle, color: gold),
+                    child: Text(
+                      '${i + 1}',
+                      style: const TextStyle(color: darkBg, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(child: LandmarkCard(stops[i])),
+                ],
+              ),
+          ],
         ),
       ),
     );

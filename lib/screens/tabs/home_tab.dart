@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 
 import '../../core/app_theme.dart';
 import '../../core/routes.dart';
-import '../../data/landmarks.dart';
 import '../../state/app_scope.dart';
 import '../../widgets/menu_tile.dart';
 
@@ -68,8 +67,7 @@ class HomeTab extends StatelessWidget {
                             '3D-модельдер',
                             '3D models',
                           ),
-                          onTap: () =>
-                              openLandmark(context, landmarks.first),
+                          onTap: () => openModels(context),
                         ),
 
                         // Машина времени

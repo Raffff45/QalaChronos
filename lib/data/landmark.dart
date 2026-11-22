@@ -5,8 +5,8 @@ class Landmark {
     required this.names,
     required this.descriptions,
     required this.year,
-    required this.photo,
-    required this.modelPhoto,
+    required this.avatar,
+    required this.model,
     required this.lat,
     required this.lng,
     this.hasThenNow = false,
@@ -15,11 +15,15 @@ class Landmark {
   final String id;
   final List<String> names;
   final List<String> descriptions;
+
+  /// Год завершения строительства.
   final String year;
 
-  /// Имя файла в assets/ без расширения.
-  final String photo;
-  final String modelPhoto;
+  /// Круглая аватарка (метка на карте, карточки): путь вида assets/avatar/xxx.png
+  final String avatar;
+
+  /// 3D-модель: путь вида assets/3D_models/xxx.glb
+  final String model;
 
   /// Координаты объекта на карте (широта и долгота).
   final double lat;

@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -8,8 +11,10 @@ import '../../core/routes.dart';
 import '../../data/landmark.dart';
 import '../../data/landmarks.dart';
 import '../../state/app_scope.dart';
+import '../../widgets/landmark_avatar.dart';
 
-/// Карта Алматы с метками архитектурных объектов.
+/// Карта Алматы с метками архитектурных объектов, положением пользователя
+/// и подсказкой, если плитки карты не загрузились (нет интернета).
 /// [showTitle] = false, когда экран открыт отдельно и заголовок уже есть в AppBar.
 class MapTab extends StatefulWidget {
   const MapTab({super.key, this.showTitle = true});
@@ -33,8 +38,18 @@ class _MapTabState extends State<MapTab> {
   final _controller = MapController();
   String? _selectedId = landmarks.isEmpty ? null : landmarks.first.id;
 
+  // Геолокация пользователя
+  LatLng? _me;
+  StreamSubscription<Position>? _posSub;
+  bool _locating = false;
+
+  // Загрузка плиток карты
+  bool _tilesFailed = false;
+  int _tileEpoch = 0;
+
   @override
   void dispose() {
+    _posSub?.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -48,10 +63,120 @@ class _MapTabState extends State<MapTab> {
 
   void _select(Landmark l) {
     setState(() => _selectedId = l.id);
+    _moveTo(LatLng(l.lat, l.lng));
+  }
+
+  void _moveTo(LatLng point) {
     final zoom = _controller.camera.zoom;
-    _controller.move(
-      LatLng(l.lat, l.lng),
-      zoom < _focusZoom ? _focusZoom : zoom,
+    _controller.move(point, zoom < _focusZoom ? _focusZoom : zoom);
+  }
+
+  void _retryTiles() {
+    setState(() {
+      _tilesFailed = false;
+      _tileEpoch++; // новый ключ слоя плиток = повторная загрузка
+    });
+  }
+
+  void _toast(String text, {String? actionLabel, Future<bool> Function()? action}) {
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(text),
+        action: (actionLabel != null && action != null)
+            ? SnackBarAction(label: actionLabel, onPressed: () => action())
+            : null,
+      ),
+    );
+  }
+
+  /// Определяет положение пользователя, ставит на карту синюю точку
+  /// и дальше обновляет её, пока открыта карта.
+  Future<void> _goToMe() async {
+    if (_locating) return;
+    final t = AppScope.read(context).t;
+    setState(() => _locating = true);
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        _toast(
+          t(
+            'Включите геолокацию на телефоне.',
+            'Телефондағы геолокацияны қосыңыз.',
+            'Turn on location services on your phone.',
+          ),
+          actionLabel: t('Настройки', 'Баптаулар', 'Settings'),
+          action: Geolocator.openLocationSettings,
+        );
+        return;
+      }
+
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied) {
+        _toast(t(
+          'Нет доступа к геолокации.',
+          'Геолокацияға рұқсат жоқ.',
+          'Location permission was denied.',
+        ));
+        return;
+      }
+      if (permission == LocationPermission.deniedForever) {
+        _toast(
+          t(
+            'Разрешите геолокацию в настройках приложения.',
+            'Қолданба баптауларында геолокацияға рұқсат беріңіз.',
+            'Allow location in the app settings.',
+          ),
+          actionLabel: t('Настройки', 'Баптаулар', 'Settings'),
+          action: Geolocator.openAppSettings,
+        );
+        return;
+      }
+
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 15),
+        ),
+      );
+      if (!mounted) return;
+      final me = LatLng(pos.latitude, pos.longitude);
+      setState(() => _me = me);
+      _moveTo(me);
+      _startStream();
+    } on TimeoutException {
+      _toast(t(
+        'Не удалось определить местоположение. Выйдите на открытое место и повторите.',
+        'Орналасқан жерді анықтау мүмкін болмады. Ашық жерге шығып, қайталаңыз.',
+        'Could not get your location. Try again outdoors.',
+      ));
+    } catch (_) {
+      _toast(t(
+        'Не удалось определить местоположение.',
+        'Орналасқан жерді анықтау мүмкін болмады.',
+        'Could not get your location.',
+      ));
+    } finally {
+      if (mounted) setState(() => _locating = false);
+    }
+  }
+
+  void _startStream() {
+    _posSub?.cancel();
+    _posSub = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 15, // обновлять, когда сдвинулись минимум на 15 м
+      ),
+    ).listen(
+      (p) {
+        if (mounted) setState(() => _me = LatLng(p.latitude, p.longitude));
+      },
+      onError: (_) {},
     );
   }
 
@@ -60,6 +185,7 @@ class _MapTabState extends State<MapTab> {
     final state = AppScope.of(context);
     final t = state.t;
     final selected = _selected;
+    final topInset = MediaQuery.paddingOf(context).top;
 
     return Stack(
       children: [
@@ -85,9 +211,30 @@ class _MapTabState extends State<MapTab> {
             ),
             children: [
               TileLayer(
+                key: ValueKey(_tileEpoch),
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                 userAgentPackageName: _userAgent,
+                errorTileCallback: (tile, error, stackTrace) {
+                  if (_tilesFailed) return;
+                  // setState нельзя вызывать прямо во время построения кадра
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted && !_tilesFailed) {
+                      setState(() => _tilesFailed = true);
+                    }
+                  });
+                },
               ),
+              if (_me != null)
+                MarkerLayer(
+                  markers: [
+                    Marker(
+                      point: _me!,
+                      width: 26,
+                      height: 26,
+                      child: const _MeDot(),
+                    ),
+                  ],
+                ),
               MarkerLayer(
                 markers: [
                   for (final l in landmarks)
@@ -123,10 +270,44 @@ class _MapTabState extends State<MapTab> {
 
         if (widget.showTitle)
           Positioned(
-            top: MediaQuery.paddingOf(context).top + 12,
+            top: topInset + 12,
             left: 16,
             child: _TitlePill(t('Карта Алматы', 'Алматы картасы', 'Almaty map')),
           ),
+
+        // Нет интернета / плитки не загрузились
+        if (_tilesFailed)
+          Positioned(
+            top: topInset + (widget.showTitle ? 64 : 12),
+            left: 16,
+            right: 16,
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: _maxContentWidth),
+                child: _OfflineBanner(
+                  text: t(
+                    'Карта не загрузилась. Проверьте интернет.',
+                    'Карта жүктелмеді. Интернетті тексеріңіз.',
+                    'Map failed to load. Check your internet connection.',
+                  ),
+                  retryLabel: t('Повторить', 'Қайталау', 'Retry'),
+                  onRetry: _retryTiles,
+                ),
+              ),
+            ),
+          ),
+
+        // Кнопка «Где я»
+        Positioned(
+          right: 16,
+          bottom: 140,
+          child: _RoundButton(
+            icon: Icons.my_location,
+            loading: _locating,
+            onTap: _goToMe,
+          ),
+        ),
 
         // Карточка выбранного объекта
         if (selected != null)
@@ -191,9 +372,14 @@ class _Pin extends StatelessWidget {
                 ],
               ),
               child: ClipOval(
-                child: Image.asset(
-                  'assets/${landmark.photo}.jpg',
-                  fit: BoxFit.cover,
+                // небольшое увеличение прячет синюю кайму самой аватарки
+                child: Transform.scale(
+                  scale: 1.12,
+                  child: Image.asset(
+                    landmark.avatar,
+                    fit: BoxFit.cover,
+                    cacheWidth: 156,
+                  ),
                 ),
               ),
             ),
@@ -275,15 +461,7 @@ class _SelectedCard extends StatelessWidget {
             padding: const EdgeInsets.all(12),
             child: Row(
               children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Image.asset(
-                    'assets/${landmark.photo}.jpg',
-                    width: 64,
-                    height: 64,
-                    fit: BoxFit.cover,
-                  ),
-                ),
+                LandmarkAvatar(landmark, size: 64),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(
@@ -315,6 +493,105 @@ class _SelectedCard extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+/// Синяя точка «вы здесь».
+class _MeDot extends StatelessWidget {
+  const _MeDot();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: const Color(0xFF2F80ED),
+        border: Border.all(color: Colors.white, width: 3),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF2F80ED).withValues(alpha: 0.4),
+            blurRadius: 10,
+            spreadRadius: 3,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RoundButton extends StatelessWidget {
+  const _RoundButton({
+    required this.icon,
+    required this.onTap,
+    this.loading = false,
+  });
+
+  final IconData icon;
+  final VoidCallback onTap;
+  final bool loading;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: darkBg.withValues(alpha: 0.92),
+      elevation: 3,
+      shape: CircleBorder(
+        side: BorderSide(color: gold.withValues(alpha: 0.45), width: 1.2),
+      ),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: loading ? null : onTap,
+        child: SizedBox(
+          width: 48,
+          height: 48,
+          child: Center(
+            child: loading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: gold),
+                  )
+                : Icon(icon, color: gold),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OfflineBanner extends StatelessWidget {
+  const _OfflineBanner({
+    required this.text,
+    required this.retryLabel,
+    required this.onRetry,
+  });
+
+  final String text;
+  final String retryLabel;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 6, 6, 6),
+      decoration: BoxDecoration(
+        color: darkBg.withValues(alpha: 0.95),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: gold.withValues(alpha: 0.45), width: 1.2),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.wifi_off, color: gold, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(color: Colors.white, fontSize: 13),
+            ),
+          ),
+          TextButton(onPressed: onRetry, child: Text(retryLabel)),
+        ],
       ),
     );
   }
